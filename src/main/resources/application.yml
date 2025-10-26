@@ -1,0 +1,33 @@
+spring:
+  application:
+    name: crm-auth-service
+
+  jpa:
+    database-platform: org.hibernate.dialect.PostgreSQLDialect
+    hibernate:
+      ddl-auto: ${DDL_AUTO:update}
+    show-sql: false
+    properties:
+      hibernate:
+        format_sql: true
+        use_sql_comments: true
+
+  profiles:
+    active: dev
+
+jwt:
+  secret: ${JWT_SECRET:changeMeInProductionThisIsAVeryLongSecretKey123456789}
+  expiration: ${JWT_EXPIRATION:86400000}
+  refresh-expiration: ${JWT_REFRESH_EXPIRATION:604800000}
+
+app:
+  super-admin:
+    email: ${SUPER_ADMIN_EMAIL:admin@crm.com}
+    password: ${SUPER_ADMIN_PASSWORD:SuperAdmin123!}
+    first-name: ${SUPER_ADMIN_FIRSTNAME:Super}
+    last-name: ${SUPER_ADMIN_LASTNAME:Admin}
+
+logging:
+  level:
+    root: INFO
+    com.crm.AuthService: INFO
