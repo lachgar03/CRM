@@ -1,91 +1,116 @@
 package com.crm.AuthService.user.entities;
 
-import com.crm.AuthService.role.entities.Permission;
 import com.crm.AuthService.role.entities.Role;
 import com.crm.AuthService.tenant.entities.Tenant;
-import jakarta.persistence.*;
-import jakarta.validation.constraints.NotNull;
-import lombok.AllArgsConstructor;
-import lombok.Data;
-import lombok.NoArgsConstructor;
+import lombok.*;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
 
+import jakarta.persistence.*;
+import java.time.LocalDateTime;
 import java.util.Collection;
-import java.util.HashSet;
-import java.util.List;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 @Entity
-@AllArgsConstructor
+@Getter
+@Setter
 @NoArgsConstructor
-@Data
-
+@AllArgsConstructor
+@Builder
 public class User implements UserDetails {
+
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
+
+    @Column(nullable = false)
+    private String firstName;
+
+    @Column(nullable = false)
+    private String lastName;
+
+    @Column(nullable = false, unique = true)
+    private String email;
+
+    @Column(nullable = false)
+    private String password;
+
+    @Builder.Default  // ⭐ Important for boolean fields
+    @Column(nullable = false)
+    private boolean enabled = true;
+
+    @Builder.Default  // ⭐ Important for boolean fields
+    @Column(nullable = false)
+    private boolean accountNonExpired = true;
+
+    @Builder.Default
+    @Column(nullable = false)
+    private boolean accountNonLocked = true;
+
+    @Builder.Default
+    @Column(nullable = false)
+    private boolean credentialsNonExpired = true;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "tenant_id", nullable = false)
     private Tenant tenant;
-    @NotNull
-    private String username;
-    @NotNull
-    private String password;
-    @NotNull
-    private String email;
-    private String firstName;
-    private String lastName;
-    private String status;
 
-    @ManyToMany
+    @ManyToMany(fetch = FetchType.EAGER)
     @JoinTable(
-            name = "user_role",
+            name = "user_roles",
             joinColumns = @JoinColumn(name = "user_id"),
             inverseJoinColumns = @JoinColumn(name = "role_id")
     )
-    private Set<Role> roles=new HashSet<>();
+    private Set<Role> roles;
 
+    @Column(nullable = false, updatable = false)
+    private LocalDateTime createdAt;
+
+    @Column
+    private LocalDateTime updatedAt;
+
+    // UserDetails implementation
     @Override
     public Collection<? extends GrantedAuthority> getAuthorities() {
-        Set<GrantedAuthority> authorities = new HashSet<>();
+        return roles.stream()
+                .map(role -> new SimpleGrantedAuthority(role.getName()))
+                .collect(Collectors.toSet());
+    }
 
-        if (this.roles != null && !this.roles.isEmpty()) {
-            for (Role role : this.roles) {
-                authorities.add(new SimpleGrantedAuthority("ROLE_" + role.getName()));
-
-                if (role.getPermissions() != null && !role.getPermissions().isEmpty()) {
-                    for (Permission permission : role.getPermissions()) {
-                        String authority = permission.getResource() + ":" + permission.getAction();
-                        authorities.add(new SimpleGrantedAuthority(authority));
-                    }
-                }
-            }
-        }
-
-        return authorities;
+    @Override
+    public String getUsername() {
+        return email;
     }
 
     @Override
     public boolean isAccountNonExpired() {
-        return UserDetails.super.isAccountNonExpired();
+        return accountNonExpired;
     }
 
     @Override
     public boolean isAccountNonLocked() {
-        return UserDetails.super.isAccountNonLocked();
+        return accountNonLocked;
     }
 
     @Override
     public boolean isCredentialsNonExpired() {
-        return UserDetails.super.isCredentialsNonExpired();
+        return credentialsNonExpired;
     }
 
     @Override
     public boolean isEnabled() {
-        return UserDetails.super.isEnabled();
+        return enabled;
     }
 
+    @PrePersist
+    protected void onCreate() {
+        createdAt = LocalDateTime.now();
+    }
 
+    @PreUpdate
+    protected void onUpdate() {
+        updatedAt = LocalDateTime.now();
+    }
 }

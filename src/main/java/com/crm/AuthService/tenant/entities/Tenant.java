@@ -16,6 +16,7 @@ import java.util.List;
 @AllArgsConstructor
 @Data
 @Builder
+
 public class Tenant {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
