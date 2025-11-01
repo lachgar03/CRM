@@ -30,6 +30,8 @@ public class Tenant {
 
     @Column(nullable = false, length = 100)
     private String status;
+    @Column(name = "schema_name", length = 63)
+    private String schemaName;
 
     @Column(name = "subscription_plan", length = 50)
     private String subscription_plan;

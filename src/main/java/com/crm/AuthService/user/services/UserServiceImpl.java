@@ -1,8 +1,8 @@
 package com.crm.AuthService.user.services;
 
+import com.crm.AuthService.cache.CacheEvictionService;
 import com.crm.AuthService.exception.EmailAlreadyExistsException;
 import com.crm.AuthService.exception.RoleNotFoundException;
-import com.crm.AuthService.exception.UserNotFoundException;
 import com.crm.AuthService.role.entities.Role;
 import com.crm.AuthService.role.repositories.RoleRepository;
 import com.crm.AuthService.security.TenantContextHolder;
@@ -33,6 +33,8 @@ public class UserServiceImpl implements UserService {
     private final RoleRepository roleRepository;
     private final TenantRepository tenantRepository;
     private final PasswordEncoder passwordEncoder;
+    private final CacheEvictionService cacheEvictionService;
+
 
     @Override
     @Transactional(readOnly = true)
@@ -76,9 +78,7 @@ public class UserServiceImpl implements UserService {
         // Get roles
         Set<Role> roles = new HashSet<>();
         if (request.getRoleIds() != null && !request.getRoleIds().isEmpty()) {
-            roles = roleRepository.findAllById(request.getRoleIds())
-                    .stream()
-                    .collect(Collectors.toSet());
+            roles = new HashSet<>(roleRepository.findAllById(request.getRoleIds()));
 
             if (roles.size() != request.getRoleIds().size()) {
                 throw new RoleNotFoundException("One or more roles not found");
@@ -107,11 +107,10 @@ public class UserServiceImpl implements UserService {
     @Transactional
     public UserResponse updateUser(Long id, UpdateUserRequest request) {
         Long tenantId = TenantContextHolder.getRequiredTenantId();
-
         User user = userRepository.findByIdAndTenantId(id, tenantId)
                 .orElseThrow(() -> new UserNotFoundException("User not found with id: " + id));
+        String oldEmail = user.getEmail();
 
-        // Update fields
         if (request.getFirstName() != null) {
             user.setFirstName(request.getFirstName());
         }
@@ -119,7 +118,6 @@ public class UserServiceImpl implements UserService {
             user.setLastName(request.getLastName());
         }
         if (request.getEmail() != null && !request.getEmail().equals(user.getEmail())) {
-            // Check email uniqueness
             if (userRepository.findByEmail(request.getEmail()).isPresent()) {
                 throw new EmailAlreadyExistsException(request.getEmail());
             }
@@ -129,14 +127,17 @@ public class UserServiceImpl implements UserService {
             user.setEnabled(request.getEnabled());
         }
         if (request.getRoleIds() != null) {
-            Set<Role> roles = roleRepository.findAllById(request.getRoleIds())
-                    .stream()
-                    .collect(Collectors.toSet());
+            Set<Role> roles = new HashSet<>(roleRepository.findAllById(request.getRoleIds()));
             user.setRoles(roles);
         }
 
         user.setUpdatedAt(LocalDateTime.now());
         User updatedUser = userRepository.save(user);
+
+        cacheEvictionService.evictUserCaches(updatedUser.getId(), oldEmail);
+        if (!oldEmail.equals(updatedUser.getEmail())) {
+            cacheEvictionService.evictUserCaches(updatedUser.getId(), updatedUser.getEmail());
+        }
 
         log.info("User updated: id={}, email={}, tenantId={}", updatedUser.getId(), updatedUser.getEmail(), tenantId);
 
@@ -151,9 +152,9 @@ public class UserServiceImpl implements UserService {
         User user = userRepository.findByIdAndTenantId(id, tenantId)
                 .orElseThrow(() -> new UserNotFoundException("User not found with id: " + id));
 
-        // Soft delete
         user.setEnabled(false);
         userRepository.save(user);
+        cacheEvictionService.evictUserCaches(user.getId(), user.getEmail());
 
         log.info("User soft deleted: id={}, email={}, tenantId={}", user.getId(), user.getEmail(), tenantId);
     }
@@ -168,6 +169,7 @@ public class UserServiceImpl implements UserService {
 
         user.setEnabled(true);
         User savedUser = userRepository.save(user);
+        cacheEvictionService.evictUserCaches(savedUser.getId(), savedUser.getEmail());
 
         log.info("User activated: id={}, email={}", savedUser.getId(), savedUser.getEmail());
 
@@ -198,9 +200,7 @@ public class UserServiceImpl implements UserService {
         User user = userRepository.findByIdAndTenantId(id, tenantId)
                 .orElseThrow(() -> new UserNotFoundException("User not found with id: " + id));
 
-        Set<Role> roles = roleRepository.findAllById(roleIds)
-                .stream()
-                .collect(Collectors.toSet());
+        Set<Role> roles = new HashSet<>(roleRepository.findAllById(roleIds));
 
         if (roles.size() != roleIds.size()) {
             throw new RoleNotFoundException("One or more roles not found");

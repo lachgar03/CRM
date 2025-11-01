@@ -11,6 +11,15 @@ services:
       - "${DB_PORT}:5432"
     volumes:
       - db-data:/var/lib/postgresql/data
-
+  redis:
+    image: redis:latest
+    container_name: redis
+    ports:
+      - "6379:6379"
+    command: [ "redis-server", "--appendonly", "yes" ]
+    volumes:
+      - redis_data:/data
+    restart: always
 volumes:
   db-data:
+  redis-data:

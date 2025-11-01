@@ -37,11 +37,11 @@ public class User implements UserDetails {
     @Column(nullable = false)
     private String password;
 
-    @Builder.Default  // ⭐ Important for boolean fields
+    @Builder.Default
     @Column(nullable = false)
     private boolean enabled = true;
 
-    @Builder.Default  // ⭐ Important for boolean fields
+    @Builder.Default
     @Column(nullable = false)
     private boolean accountNonExpired = true;
 
@@ -71,7 +71,6 @@ public class User implements UserDetails {
     @Column
     private LocalDateTime updatedAt;
 
-    // UserDetails implementation
     @Override
     public Collection<? extends GrantedAuthority> getAuthorities() {
         return roles.stream()
