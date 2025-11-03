@@ -2,6 +2,7 @@ package com.crm.AuthService.role.services;
 
 import com.crm.AuthService.role.entities.Permission;
 import com.crm.AuthService.role.entities.Role;
+import com.crm.AuthService.role.repositories.RoleRepository; // IMPORTED
 import com.crm.AuthService.user.entities.User;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -10,6 +11,7 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 
+import java.util.HashSet; // IMPORTED
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -17,6 +19,9 @@ import java.util.stream.Collectors;
 @Service
 @RequiredArgsConstructor
 public class PermissionService {
+
+    // INJECTED to fetch Roles from public schema
+    private final RoleRepository roleRepository;
 
     private static final String SUPER_ADMIN_ROLE = "ROLE_SUPER_ADMIN";
 
@@ -53,6 +58,7 @@ public class PermissionService {
         }
 
         // Get all user permissions and check
+        // This method is now fixed to work correctly
         Set<Permission> permissions = getUserPermissions(user);
 
         boolean hasPermission = permissions.stream()
@@ -84,12 +90,10 @@ public class PermissionService {
             return false;
         }
 
-        Set<String> userRoles = user.getRoles().stream()
-                .map(Role::getName)
-                .collect(Collectors.toSet());
-
+        // FIXED: Use the User entity's helper method,
+        // which checks the transient 'roleNames' set
         for (String roleName : roleNames) {
-            if (userRoles.contains(roleName)) {
+            if (user.hasRole(roleName)) {
                 return true;
             }
         }
@@ -116,7 +120,18 @@ public class PermissionService {
      */
     @Cacheable(value = "userPermissions", key = "#user.id")
     public Set<Permission> getUserPermissions(User user) {
-        return user.getRoles().stream()
+        // FIXED: Use user.getRoleIds() to fetch roles from the RoleRepository
+
+        Set<Long> roleIds = user.getRoleIds();
+        if (roleIds == null || roleIds.isEmpty()) {
+            return Set.of();
+        }
+
+        // Fetch roles from public schema
+        Set<Role> roles = new HashSet<>(roleRepository.findAllById(roleIds));
+
+        // Now aggregate permissions from the roles
+        return roles.stream()
                 .flatMap(role -> role.getPermissions().stream())
                 .collect(Collectors.toSet());
     }
@@ -128,8 +143,8 @@ public class PermissionService {
      * @return true if user has SUPER_ADMIN role
      */
     public boolean isSuperAdmin(User user) {
-        return user.getRoles().stream()
-                .anyMatch(role -> SUPER_ADMIN_ROLE.equals(role.getName()));
+        // FIXED: Use the User entity's helper method
+        return user.hasRole(SUPER_ADMIN_ROLE);
     }
 
     /**
@@ -149,9 +164,8 @@ public class PermissionService {
      * @return true if user has TENANT_ADMIN role
      */
     public boolean isTenantAdmin(User user) {
-        return user.getRoles().stream()
-                .anyMatch(role -> "ROLE_TENANT_ADMIN".equals(role.getName()) ||
-                        "ROLE_ADMIN".equals(role.getName()));
+        // FIXED: Use the User entity's helper method
+        return user.hasRole("ROLE_TENANT_ADMIN") || user.hasRole("ROLE_ADMIN");
     }
 
     /**
@@ -179,6 +193,8 @@ public class PermissionService {
         Object principal = authentication.getPrincipal();
 
         if (principal instanceof User) {
+            // This assumes your UserDetailsService populates the User object
+            // (including transient fields) and sets it as the principal
             return (User) principal;
         }
 

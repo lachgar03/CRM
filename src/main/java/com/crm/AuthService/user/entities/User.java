@@ -1,7 +1,5 @@
 package com.crm.AuthService.user.entities;
 
-import com.crm.AuthService.role.entities.Role;
-import com.crm.AuthService.tenant.entities.Tenant;
 import lombok.*;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
@@ -10,10 +8,19 @@ import org.springframework.security.core.userdetails.UserDetails;
 import jakarta.persistence.*;
 import java.time.LocalDateTime;
 import java.util.Collection;
+import java.util.HashSet;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+/**
+ * User entity - Lives in tenant-specific schemas (tenant_X)
+ *
+ * Relations:
+ * - Roles: Stored as IDs only (roleIds) - Resolved at runtime
+ * - Tenant: Derived from schema context, not a DB relation
+ */
 @Entity
+@Table(name = "users") // Omit schema - determined by search_path
 @Getter
 @Setter
 @NoArgsConstructor
@@ -53,28 +60,54 @@ public class User implements UserDetails {
     @Column(nullable = false)
     private boolean credentialsNonExpired = true;
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "tenant_id", nullable = false)
-    private Tenant tenant;
-
-    @ManyToMany(fetch = FetchType.EAGER)
-    @JoinTable(
+    // ============================================================
+    // ROLES - Stored as IDs, resolved at runtime
+    // ============================================================
+    @ElementCollection(fetch = FetchType.EAGER)
+    @CollectionTable(
             name = "user_roles",
-            joinColumns = @JoinColumn(name = "user_id"),
-            inverseJoinColumns = @JoinColumn(name = "role_id")
+            joinColumns = @JoinColumn(name = "user_id")
     )
-    private Set<Role> roles;
+    @Column(name = "role_id")
+    @Builder.Default
+    private Set<Long> roleIds = new HashSet<>();
 
+    // ============================================================
+    // TENANT - Derived from context, not stored
+    // ============================================================
+    @Transient
+    private Long tenantId; // Set at runtime from TenantContextHolder
+
+    @Transient
+    private String tenantName; // Loaded when needed
+
+    // ============================================================
+    // RUNTIME DATA - Not persisted
+    // ============================================================
+    @Transient
+    @Builder.Default
+    private Set<String> roleNames = new HashSet<>(); // For authorities
+
+    @Transient
+    @Builder.Default
+    private Set<String> permissions = new HashSet<>(); // For permission checks
+
+    // ============================================================
+    // AUDIT
+    // ============================================================
     @Column(nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
     @Column
     private LocalDateTime updatedAt;
 
+    // ============================================================
+    // UserDetails Implementation
+    // ============================================================
     @Override
     public Collection<? extends GrantedAuthority> getAuthorities() {
-        return roles.stream()
-                .map(role -> new SimpleGrantedAuthority(role.getName()))
+        return roleNames.stream()
+                .map(SimpleGrantedAuthority::new)
                 .collect(Collectors.toSet());
     }
 
@@ -103,13 +136,79 @@ public class User implements UserDetails {
         return enabled;
     }
 
+    // ============================================================
+    // Lifecycle Hooks
+    // ============================================================
     @PrePersist
     protected void onCreate() {
-        createdAt = LocalDateTime.now();
+        if (createdAt == null) {
+            createdAt = LocalDateTime.now();
+        }
     }
 
     @PreUpdate
     protected void onUpdate() {
         updatedAt = LocalDateTime.now();
+    }
+
+    // ============================================================
+    // Helper Methods
+    // ============================================================
+
+    /**
+     * Add a role by ID
+     */
+    public void addRole(Long roleId) {
+        if (this.roleIds == null) {
+            this.roleIds = new HashSet<>();
+        }
+        this.roleIds.add(roleId);
+    }
+
+    /**
+     * Remove a role by ID
+     */
+    public void removeRole(Long roleId) {
+        if (this.roleIds != null) {
+            this.roleIds.remove(roleId);
+        }
+    }
+
+    /**
+     * Check if user has a specific role name (runtime check)
+     */
+    public boolean hasRole(String roleName) {
+        return roleNames != null && roleNames.contains(roleName);
+    }
+
+    /**
+     * Check if user has a specific permission (runtime check)
+     */
+    public boolean hasPermission(String permission) {
+        return permissions != null && permissions.contains(permission);
+    }
+
+    @Override
+    public String toString() {
+        return "User{" +
+                "id=" + id +
+                ", email='" + email + '\'' +
+                ", enabled=" + enabled +
+                ", roleCount=" + (roleIds != null ? roleIds.size() : 0) +
+                ", tenantId=" + tenantId +
+                '}';
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (!(o instanceof User)) return false;
+        User user = (User) o;
+        return id != null && id.equals(user.id);
+    }
+
+    @Override
+    public int hashCode() {
+        return getClass().hashCode();
     }
 }

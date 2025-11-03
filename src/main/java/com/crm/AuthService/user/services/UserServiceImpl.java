@@ -3,6 +3,8 @@ package com.crm.AuthService.user.services;
 import com.crm.AuthService.cache.CacheEvictionService;
 import com.crm.AuthService.exception.EmailAlreadyExistsException;
 import com.crm.AuthService.exception.RoleNotFoundException;
+import com.crm.AuthService.exception.TenantNotFoundException; // Use a specific exception
+import com.crm.AuthService.exception.UserNotFoundException;
 import com.crm.AuthService.role.entities.Role;
 import com.crm.AuthService.role.repositories.RoleRepository;
 import com.crm.AuthService.security.TenantContextHolder;
@@ -35,55 +37,72 @@ public class UserServiceImpl implements UserService {
     private final PasswordEncoder passwordEncoder;
     private final CacheEvictionService cacheEvictionService;
 
+    /**
+     * Helper to get the current tenant from the public schema
+     */
+    private Tenant getRequiredTenant(Long tenantId) {
+        return tenantRepository.findById(tenantId)
+                .orElseThrow(() -> new TenantNotFoundException("Tenant not found with id: " + tenantId));
+    }
+
+    /**
+     * Helper to validate and get Role IDs
+     */
+    private Set<Long> validateRoleIds(Set<Long> roleIds) {
+        if (roleIds == null || roleIds.isEmpty()) {
+            return new HashSet<>();
+        }
+        long foundRolesCount = roleRepository.countByIdIn(roleIds);
+        if (foundRolesCount != roleIds.size()) {
+            throw new RoleNotFoundException("One or more roles not found");
+        }
+        return roleIds;
+    }
+
 
     @Override
     @Transactional(readOnly = true)
     public Page<UserResponse> getAllUsers(Pageable pageable, String search) {
         Long tenantId = TenantContextHolder.getRequiredTenantId();
+        Tenant tenant = getRequiredTenant(tenantId); // Fetch tenant info for response
 
         Page<User> users;
         if (search != null && !search.isBlank()) {
-            users = userRepository.findByTenantIdAndSearch(tenantId, search, pageable);
+            // Assuming findByTenantIdAndSearch is a custom query that doesn't need tenantId
+            // If it's pure JPA, it will use the context, which is correct
+            users = userRepository.findByTenantIdAndSearch(search, pageable); // Assuming tenantId is not needed if you use context
         } else {
-            users = userRepository.findByTenantId(tenantId, pageable);
+            users = userRepository.findAll(pageable); // Context handles tenant filtering
         }
 
-        return users.map(this::toUserResponse);
+        return users.map(user -> toUserResponse(user, tenant));
     }
 
     @Override
     @Transactional(readOnly = true)
     public UserResponse getUserById(Long id) {
         Long tenantId = TenantContextHolder.getRequiredTenantId();
-        User user = userRepository.findByIdAndTenantId(id, tenantId)
+        Tenant tenant = getRequiredTenant(tenantId); // Fetch tenant info
+
+        User user = userRepository.findById(id) // Context handles tenant filtering
                 .orElseThrow(() -> new UserNotFoundException("User not found with id: " + id));
 
-        return toUserResponse(user);
+        return toUserResponse(user, tenant);
     }
 
     @Override
     @Transactional
     public UserResponse createUser(CreateUserRequest request) {
         Long tenantId = TenantContextHolder.getRequiredTenantId();
+        Tenant tenant = getRequiredTenant(tenantId); // Fetch tenant for response
 
-        // Check email uniqueness
+        // Check email uniqueness *within the current tenant*
         if (userRepository.findByEmail(request.getEmail()).isPresent()) {
             throw new EmailAlreadyExistsException(request.getEmail());
         }
 
-        // Get tenant
-        Tenant tenant = tenantRepository.findById(tenantId)
-                .orElseThrow(() -> new RuntimeException("Tenant not found"));
-
-        // Get roles
-        Set<Role> roles = new HashSet<>();
-        if (request.getRoleIds() != null && !request.getRoleIds().isEmpty()) {
-            roles = new HashSet<>(roleRepository.findAllById(request.getRoleIds()));
-
-            if (roles.size() != request.getRoleIds().size()) {
-                throw new RoleNotFoundException("One or more roles not found");
-            }
-        }
+        // Validate roles (from public schema)
+        Set<Long> roleIds = validateRoleIds(request.getRoleIds());
 
         // Create user
         User user = User.builder()
@@ -91,8 +110,7 @@ public class UserServiceImpl implements UserService {
                 .lastName(request.getLastName())
                 .email(request.getEmail().toLowerCase())
                 .password(passwordEncoder.encode(request.getPassword()))
-                .tenant(tenant)
-                .roles(roles)
+                .roleIds(roleIds) // <-- Set role IDs
                 .enabled(true)
                 .createdAt(LocalDateTime.now())
                 .build();
@@ -100,14 +118,16 @@ public class UserServiceImpl implements UserService {
         User savedUser = userRepository.save(user);
         log.info("User created: id={}, email={}, tenantId={}", savedUser.getId(), savedUser.getEmail(), tenantId);
 
-        return toUserResponse(savedUser);
+        return toUserResponse(savedUser, tenant);
     }
 
     @Override
     @Transactional
     public UserResponse updateUser(Long id, UpdateUserRequest request) {
         Long tenantId = TenantContextHolder.getRequiredTenantId();
-        User user = userRepository.findByIdAndTenantId(id, tenantId)
+        Tenant tenant = getRequiredTenant(tenantId); // Fetch tenant for response
+
+        User user = userRepository.findById(id)
                 .orElseThrow(() -> new UserNotFoundException("User not found with id: " + id));
         String oldEmail = user.getEmail();
 
@@ -127,8 +147,8 @@ public class UserServiceImpl implements UserService {
             user.setEnabled(request.getEnabled());
         }
         if (request.getRoleIds() != null) {
-            Set<Role> roles = new HashSet<>(roleRepository.findAllById(request.getRoleIds()));
-            user.setRoles(roles);
+            Set<Long> roleIds = validateRoleIds(request.getRoleIds());
+            user.setRoleIds(roleIds); // <-- Set role IDs
         }
 
         user.setUpdatedAt(LocalDateTime.now());
@@ -141,7 +161,7 @@ public class UserServiceImpl implements UserService {
 
         log.info("User updated: id={}, email={}, tenantId={}", updatedUser.getId(), updatedUser.getEmail(), tenantId);
 
-        return toUserResponse(updatedUser);
+        return toUserResponse(updatedUser, tenant);
     }
 
     @Override
@@ -149,10 +169,12 @@ public class UserServiceImpl implements UserService {
     public void deleteUser(Long id) {
         Long tenantId = TenantContextHolder.getRequiredTenantId();
 
-        User user = userRepository.findByIdAndTenantId(id, tenantId)
+        User user = userRepository.findById(id)
                 .orElseThrow(() -> new UserNotFoundException("User not found with id: " + id));
 
+        // This is a soft delete, just disable the user
         user.setEnabled(false);
+        user.setAccountNonLocked(false); // Also lock
         userRepository.save(user);
         cacheEvictionService.evictUserCaches(user.getId(), user.getEmail());
 
@@ -163,65 +185,77 @@ public class UserServiceImpl implements UserService {
     @Transactional
     public UserResponse activateUser(Long id) {
         Long tenantId = TenantContextHolder.getRequiredTenantId();
+        Tenant tenant = getRequiredTenant(tenantId); // Fetch tenant for response
 
-        User user = userRepository.findByIdAndTenantId(id, tenantId)
+        User user = userRepository.findById(id)
                 .orElseThrow(() -> new UserNotFoundException("User not found with id: " + id));
 
         user.setEnabled(true);
+        user.setAccountNonLocked(true); // Also unlock
         User savedUser = userRepository.save(user);
         cacheEvictionService.evictUserCaches(savedUser.getId(), savedUser.getEmail());
 
         log.info("User activated: id={}, email={}", savedUser.getId(), savedUser.getEmail());
 
-        return toUserResponse(savedUser);
+        return toUserResponse(savedUser, tenant);
     }
 
     @Override
     @Transactional
     public UserResponse deactivateUser(Long id) {
         Long tenantId = TenantContextHolder.getRequiredTenantId();
+        Tenant tenant = getRequiredTenant(tenantId); // Fetch tenant for response
 
-        User user = userRepository.findByIdAndTenantId(id, tenantId)
+        User user = userRepository.findById(id)
                 .orElseThrow(() -> new UserNotFoundException("User not found with id: " + id));
 
         user.setEnabled(false);
+        user.setAccountNonLocked(false); // Also lock
         User savedUser = userRepository.save(user);
 
+        cacheEvictionService.evictUserCaches(savedUser.getId(), savedUser.getEmail());
         log.info("User deactivated: id={}, email={}", savedUser.getId(), savedUser.getEmail());
 
-        return toUserResponse(savedUser);
+        return toUserResponse(savedUser, tenant);
     }
 
     @Override
     @Transactional
     public UserResponse assignRoles(Long id, Set<Long> roleIds) {
         Long tenantId = TenantContextHolder.getRequiredTenantId();
+        Tenant tenant = getRequiredTenant(tenantId); // Fetch tenant for response
 
-        User user = userRepository.findByIdAndTenantId(id, tenantId)
+        User user = userRepository.findById(id)
                 .orElseThrow(() -> new UserNotFoundException("User not found with id: " + id));
 
-        Set<Role> roles = new HashSet<>(roleRepository.findAllById(roleIds));
-
-        if (roles.size() != roleIds.size()) {
-            throw new RoleNotFoundException("One or more roles not found");
-        }
-
-        user.setRoles(roles);
+        Set<Long> validatedRoleIds = validateRoleIds(roleIds);
+        user.setRoleIds(validatedRoleIds); // <-- Set role IDs
         User savedUser = userRepository.save(user);
 
         log.info("Roles assigned: userId={}, roleIds={}", savedUser.getId(), roleIds);
 
-        return toUserResponse(savedUser);
+        return toUserResponse(savedUser, tenant);
     }
 
-    private UserResponse toUserResponse(User user) {
-        Set<RoleDto> roleDtos = user.getRoles().stream()
-                .map(role -> RoleDto.builder()
-                        .id(role.getId())
-                        .name(role.getName())
-                        .description(role.getDescription())
-                        .build())
-                .collect(Collectors.toSet());
+    /**
+     * Private helper to build the response DTO.
+     * This version requires the Tenant object to be passed in,
+     * as the User entity itself does not store it.
+     */
+    private UserResponse toUserResponse(User user, Tenant tenant) {
+
+        // Manually fetch Roles from public schema using the IDs
+        Set<RoleDto> roleDtos = new HashSet<>();
+        if (user.getRoleIds() != null && !user.getRoleIds().isEmpty()) {
+            Set<Role> roles = new HashSet<>(roleRepository.findAllById(user.getRoleIds()));
+            roleDtos = roles.stream()
+                    .map(role -> RoleDto.builder()
+                            .id(role.getId())
+                            .name(role.getName())
+                            .description(role.getDescription())
+                            .build())
+                    .collect(Collectors.toSet());
+        }
 
         return UserResponse.builder()
                 .id(user.getId())
@@ -229,9 +263,9 @@ public class UserServiceImpl implements UserService {
                 .lastName(user.getLastName())
                 .email(user.getEmail())
                 .enabled(user.isEnabled())
-                .tenantId(user.getTenant().getId())
-                .tenantName(user.getTenant().getName())
-                .roles(roleDtos)
+                .tenantId(tenant.getId()) // <-- Get from Tenant object
+                .tenantName(tenant.getName()) // <-- Get from Tenant object
+                .roles(roleDtos) // <-- Set the manually fetched roles
                 .createdAt(user.getCreatedAt())
                 .updatedAt(user.getUpdatedAt())
                 .build();

@@ -1,4 +1,4 @@
-package com.crm.AuthService.config;
+package com.crm.AuthService.migration;
 
 import com.crm.AuthService.tenant.entities.Tenant;
 import com.crm.AuthService.tenant.repository.TenantRepository;
@@ -177,17 +177,18 @@ public class FlywayMigrationService {
      * Drop a schema (used for cleanup on failure)
      */
     public void dropSchema(String schemaName) {
-        log.warn("Dropping schema: {}", schemaName);
+        log.warn("⚠️  Dropping schema: {}", schemaName);
 
         try (Connection connection = dataSource.getConnection();
              Statement statement = connection.createStatement()) {
 
+            // CASCADE will delete all objects in the schema
             statement.execute(String.format("DROP SCHEMA IF EXISTS %s CASCADE", schemaName));
-            log.info("Schema dropped: {}", schemaName);
+            log.info("Schema dropped successfully: {}", schemaName);
 
         } catch (Exception e) {
             log.error("Failed to drop schema: {}", schemaName, e);
-            throw new RuntimeException("Schema cleanup failed", e);
+            throw new RuntimeException("Schema cleanup failed: " + schemaName, e);
         }
     }
 
