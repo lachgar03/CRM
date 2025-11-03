@@ -27,8 +27,8 @@ import java.util.stream.Collectors;
 public class AuthHelper {
     private final JwtService jwtService;
     private final PasswordEncoder passwordEncoder;
-    private final TenantRepository tenantRepository; // ADDED
-    private final RoleRepository roleRepository;     // ADDED
+    private final TenantRepository tenantRepository;
+    private final RoleRepository roleRepository;
 
     @Value("${jwt.expiration}")
     private Long jwtExpiration;
@@ -46,25 +46,26 @@ public class AuthHelper {
      * @param user User to validate
      * @throws DisabledException if user or tenant is disabled
      */
+    /**
+     * Validates user and tenant status
+     * @param user User to validate
+     * @throws DisabledException if user or tenant is disabled
+     */
     public void validateUserAndTenantStatus(User user) {
         if (!user.isEnabled()) {
             throw new DisabledException("Compte utilisateur désactivé");
         }
 
-        // The User object does not contain the Tenant. Get it from the context.
-        Long tenantId = TenantContextHolder.getTenantId();
-        if (tenantId == null) {
-            throw new DisabledException("Tenant non trouvé dans le contexte");
+        // MODIFIED: Read status directly from the User principal
+        if (user.getTenantStatus() == null) {
+            // This should not happen if CustomUserDetailsService is working
+            throw new IllegalStateException("Tenant status not loaded onto User principal");
         }
 
-        // Fetch the tenant from the public schema
-        Tenant tenant = tenantRepository.findById(tenantId)
-                .orElseThrow(() -> new TenantNotFoundException("Tenant non trouvé: " + tenantId));
-
-        if (!TENANT_STATUS_ACTIVE.equals(tenant.getStatus())) {
+        if (!TENANT_STATUS_ACTIVE.equals(user.getTenantStatus())) {
             throw new DisabledException(
                     String.format("Le tenant '%s' est désactivé ou suspendu",
-                            tenant.getName())
+                            user.getTenantName()) // Use name from principal
             );
         }
     }
@@ -143,8 +144,12 @@ public class AuthHelper {
      * @return AuthResponse
      */
     public AuthResponse buildAuthResponse(User user) {
-        // Get tenantId from context, not user object
-        Long tenantId = TenantContextHolder.getRequiredTenantId();
+        // Get tenantId from user principal (which was set from context)
+        Long tenantId = user.getTenantId();
+        if (tenantId == null) {
+            // Fallback for registration flow
+            tenantId = TenantContextHolder.getRequiredTenantId();
+        }
 
         String accessToken = jwtService.generateToken(user, tenantId);
         String refreshToken = jwtService.generateRefreshToken(user, tenantId);
@@ -161,28 +166,20 @@ public class AuthHelper {
      */
     public AuthResponse buildAuthResponse(User user, String accessToken, String refreshToken) {
 
-        // Get Tenant info from context and repository
-        Long tenantId = TenantContextHolder.getRequiredTenantId();
-        Tenant tenant = tenantRepository.findById(tenantId)
-                .orElseThrow(() -> new TenantNotFoundException("Tenant non trouvé: " + tenantId));
+        // MODIFIED: All data is now on the User principal. No DB calls needed.
 
-        // Manually fetch Role names from public schema using Role IDs from User
-        Set<String> roleNames = new HashSet<>();
-        if (user.getRoleIds() != null && !user.getRoleIds().isEmpty()) {
-            roleNames = roleRepository.findAllById(user.getRoleIds()).stream()
-                    .map(Role::getName)
-                    .collect(Collectors.toSet());
-        }
+        // Get Role names from transient field
+        Set<String> roleNames = user.getRoleNames();
 
         return AuthResponse.builder()
                 .accessToken(accessToken)
                 .refreshToken(refreshToken)
                 .tokenType(TOKEN_TYPE_BEARER)
                 .expiresIn(jwtExpiration / 1000)
-                .tenantId(tenant.getId()) // FIXED: Get from fetched tenant
+                .tenantId(user.getTenantId()) // Get from principal
                 .username(user.getEmail())
-                .roles(roleNames) // FIXED: Get from manually fetched roles
-                .tenantName(tenant.getName()) // FIXED: Get from fetched tenant
+                .roles(roleNames) // Get from principal
+                .tenantName(user.getTenantName()) // Get from principal
                 .build();
     }
 

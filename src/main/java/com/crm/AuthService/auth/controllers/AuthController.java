@@ -33,10 +33,18 @@ public class AuthController {
 
 
     @PostMapping("/register")
-    public ResponseEntity<AuthResponse> register(
-            @Valid @RequestBody TenantRegistrationRequest registrationRequest) {
-        AuthResponse response = tenantRegistrationService.registerTenant(registrationRequest);
-        return ResponseEntity.status(HttpStatus.CREATED).body(response);
+    public ResponseEntity<String> register( // CHANGED: Response type
+                                            @Valid @RequestBody TenantRegistrationRequest registrationRequest) {
+
+        // This method is now void and returns no data
+        tenantRegistrationService.registerTenant(registrationRequest);
+
+        // Return 202 ACCEPTED
+        String responseMessage = String.format(
+                "Tenant registration for '%s' accepted. Provisioning is in progress.",
+                registrationRequest.getSubdomain()
+        );
+        return ResponseEntity.status(HttpStatus.ACCEPTED).body(responseMessage);
     }
 
 

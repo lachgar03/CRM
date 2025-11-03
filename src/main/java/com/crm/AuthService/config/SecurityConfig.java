@@ -22,7 +22,7 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
-
+import com.crm.AuthService.security.TenantResolutionFilter;
 import java.util.Arrays;
 import java.util.List;
 
@@ -34,7 +34,7 @@ public class SecurityConfig {
 
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
     private final CustomUserDetailsService userDetailsService;
-
+    private final TenantResolutionFilter tenantResolutionFilter;
     /**
      * Configures the security filter chain
      */
@@ -71,7 +71,7 @@ public class SecurityConfig {
 
                 // Set authentication provider
                 .authenticationProvider(authenticationProvider())
-
+                .addFilterBefore(tenantResolutionFilter, JwtAuthenticationFilter.class)
                 // Add JWT filter before UsernamePasswordAuthenticationFilter
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
 

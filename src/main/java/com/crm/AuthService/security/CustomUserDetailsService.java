@@ -1,7 +1,10 @@
 package com.crm.AuthService.security;
 
+import com.crm.AuthService.exception.TenantNotFoundException;
 import com.crm.AuthService.role.entities.Role;
 import com.crm.AuthService.role.repositories.RoleRepository;
+import com.crm.AuthService.tenant.entities.Tenant;
+import com.crm.AuthService.tenant.repository.TenantRepository;
 import com.crm.AuthService.user.entities.User;
 import com.crm.AuthService.user.repositories.UserRepository;
 import jakarta.transaction.Transactional;
@@ -11,6 +14,7 @@ import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.stereotype.Service;
 
+import java.util.HashSet;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -20,21 +24,35 @@ public class CustomUserDetailsService implements UserDetailsService {
 
     private final UserRepository userRepository;
     private final RoleRepository roleRepository;
+    // INJECT TenantRepository
+    private final TenantRepository tenantRepository;
 
     @Override
     @Transactional
     public UserDetails loadUserByUsername(String email) throws UsernameNotFoundException {
-        Long tenantId = TenantContextHolder.getTenantId(); // optional, if you need it
+        // This will now work, thanks to TenantResolutionFilter
+        Long tenantId = TenantContextHolder.getRequiredTenantId();
 
         User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new UsernameNotFoundException("User not found with email: " + email));
 
-        Set<String> roleNames = roleRepository.findAllById(user.getRoleIds())
-                .stream()
-                .map(Role::getName)
-                .collect(Collectors.toSet());
+        // Fetch Tenant and Roles
+        Tenant tenant = tenantRepository.findById(tenantId)
+                .orElseThrow(() -> new TenantNotFoundException("Tenant not found: " + tenantId));
 
+        Set<String> roleNames = new HashSet<>();
+        if(user.getRoleIds() != null && !user.getRoleIds().isEmpty()) {
+            roleNames = roleRepository.findAllById(user.getRoleIds())
+                    .stream()
+                    .map(Role::getName)
+                    .collect(Collectors.toSet());
+        }
+
+        // Populate the transient fields on the User principal
         user.setRoleNames(roleNames);
+        user.setTenantId(tenant.getId());
+        user.setTenantName(tenant.getName());
+        user.setTenantStatus(tenant.getStatus());
 
         return user;
     }

@@ -92,6 +92,8 @@ public class User implements UserDetails {
     @Builder.Default
     private Set<String> permissions = new HashSet<>(); // For permission checks
 
+    @Transient
+    private String tenantStatus;
     // ============================================================
     // AUDIT
     // ============================================================
@@ -151,9 +153,6 @@ public class User implements UserDetails {
         updatedAt = LocalDateTime.now();
     }
 
-    // ============================================================
-    // Helper Methods
-    // ============================================================
 
     /**
      * Add a role by ID

@@ -7,6 +7,6 @@ import com.crm.AuthService.exception.RoleNotFoundException;
 import com.crm.AuthService.exception.TenantAlreadyExistsException;
 
 public interface TenantRegistrationService {
-    AuthResponse registerTenant(TenantRegistrationRequest request) throws TenantAlreadyExistsException, EmailAlreadyExistsException, RoleNotFoundException;
+    void registerTenant(TenantRegistrationRequest request) throws TenantAlreadyExistsException, EmailAlreadyExistsException, RoleNotFoundException;
 
 }
