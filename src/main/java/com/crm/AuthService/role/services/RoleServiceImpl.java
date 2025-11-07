@@ -27,7 +27,6 @@ public class RoleServiceImpl implements RoleService {
     @Override
     @Transactional(readOnly = true)
     public List<RoleResponse> getAllRoles() {
-        // Get all roles (including system roles)
         List<Role> roles = roleRepository.findAll();
         return roles.stream()
                 .map(this::toRoleResponse)
@@ -45,24 +44,19 @@ public class RoleServiceImpl implements RoleService {
     @Override
     @Transactional
     public RoleResponse createRole(CreateRoleRequest request) {
-        // Check if role name already exists
         if (roleRepository.findByName(request.getName()).isPresent()) {
             throw new IllegalArgumentException("Role with name '" + request.getName() + "' already exists");
         }
 
-        // Get permissions if provided
         Set<Permission> permissions = new HashSet<>();
         if (request.getPermissionIds() != null && !request.getPermissionIds().isEmpty()) {
-            permissions = permissionRepository.findAllById(request.getPermissionIds())
-                    .stream()
-                    .collect(Collectors.toSet());
+            permissions = new HashSet<>(permissionRepository.findAllById(request.getPermissionIds()));
         }
 
-        // Create role
         Role role = new Role();
         role.setName(request.getName());
         role.setDescription(request.getDescription());
-        role.setIsSystemRole(false); // Custom roles are never system roles
+        role.setIsSystemRole(false);
         role.setPermissions(permissions);
 
         Role savedRole = roleRepository.save(role);
@@ -77,14 +71,14 @@ public class RoleServiceImpl implements RoleService {
         Role role = roleRepository.findById(id)
                 .orElseThrow(() -> new RoleNotFoundException("Role not found with id: " + id));
 
-        // Prevent editing system roles
+
         if (Boolean.TRUE.equals(role.getIsSystemRole())) {
             throw new IllegalArgumentException("Cannot update system role");
         }
 
-        // Update fields
+
         if (request.getName() != null) {
-            // Check if new name already exists
+
             roleRepository.findByName(request.getName()).ifPresent(existingRole -> {
                 if (!existingRole.getId().equals(id)) {
                     throw new IllegalArgumentException("Role with name '" + request.getName() + "' already exists");
@@ -108,13 +102,11 @@ public class RoleServiceImpl implements RoleService {
         Role role = roleRepository.findById(id)
                 .orElseThrow(() -> new RoleNotFoundException("Role not found with id: " + id));
 
-        // Prevent deleting system roles
+
         if (Boolean.TRUE.equals(role.getIsSystemRole())) {
             throw new IllegalArgumentException("Cannot delete system role");
         }
 
-        // TODO: Check if any users have this role before deleting
-        // For now, we'll allow deletion (could implement soft delete)
 
         roleRepository.delete(role);
         log.info("Role deleted: id={}, name={}", role.getId(), role.getName());
@@ -126,10 +118,7 @@ public class RoleServiceImpl implements RoleService {
         Role role = roleRepository.findById(id)
                 .orElseThrow(() -> new RoleNotFoundException("Role not found with id: " + id));
 
-        // Get permissions
-        Set<Permission> permissions = permissionRepository.findAllById(permissionIds)
-                .stream()
-                .collect(Collectors.toSet());
+        Set<Permission> permissions = new HashSet<>(permissionRepository.findAllById(permissionIds));
 
         if (permissions.size() != permissionIds.size()) {
             throw new IllegalArgumentException("One or more permissions not found");

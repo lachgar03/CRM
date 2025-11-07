@@ -23,10 +23,7 @@ public class FlywayMigrationService {
     private final DataSource dataSource;
     private final TenantRepository tenantRepository;
 
-    /**
-     * Migrate shared schema (public)
-     * Runs on application startup
-     */
+
     public void migrateSharedSchema() {
         log.info("=== Starting Shared Schema Migration ===");
 
@@ -52,10 +49,7 @@ public class FlywayMigrationService {
         }
     }
 
-    /**
-     * Migrate a specific tenant schema
-     * @param schemaName Schema name (e.g., "tenant_1")
-     */
+
     public void migrateTenantSchema(String schemaName) {
         log.info("Migrating tenant schema: {}", schemaName);
 
@@ -78,13 +72,7 @@ public class FlywayMigrationService {
         }
     }
 
-    /**
-     * Create and initialize a new tenant schema
-     * This is called automatically during tenant registration
-     *
-     * @param tenantId Tenant ID
-     * @return Schema name created
-     */
+
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public String createAndMigrateTenantSchema(Long tenantId) {
         String schemaName = "tenant_" + tenantId;
@@ -92,13 +80,10 @@ public class FlywayMigrationService {
         log.info("=== Creating New Tenant Schema: {} ===", schemaName);
 
         try {
-            // Step 1: Create the schema
             createSchema(schemaName);
 
-            // Step 2: Run all migrations on the new schema
             migrateTenantSchema(schemaName);
 
-            // Step 3: Verify schema was created successfully
             verifySchema(schemaName);
 
             log.info("=== Tenant Schema Ready: {} ===", schemaName);
@@ -107,7 +92,6 @@ public class FlywayMigrationService {
         } catch (Exception e) {
             log.error("Failed to create/migrate tenant schema: {}", schemaName, e);
 
-            // Attempt cleanup on failure
             try {
                 dropSchema(schemaName);
                 log.info("Rolled back schema creation: {}", schemaName);
@@ -119,10 +103,7 @@ public class FlywayMigrationService {
         }
     }
 
-    /**
-     * Migrate all existing tenant schemas
-     * Called on application startup to update all tenants
-     */
+
     public void migrateAllTenantSchemas() {
         log.info("=== Migrating All Existing Tenant Schemas ===");
 
@@ -141,7 +122,6 @@ public class FlywayMigrationService {
                 log.error("Failed to migrate schema for tenant {}: {}",
                         tenant.getSubdomain(), e.getMessage());
                 failureCount++;
-                // Continue with other tenants
             }
         }
 
@@ -149,19 +129,15 @@ public class FlywayMigrationService {
                 successCount, failureCount);
     }
 
-    /**
-     * Create a new PostgreSQL schema
-     */
+
     private void createSchema(String schemaName) {
         log.info("Creating schema: {}", schemaName);
 
         try (Connection connection = dataSource.getConnection();
              Statement statement = connection.createStatement()) {
 
-            // Create schema
             statement.execute(String.format("CREATE SCHEMA IF NOT EXISTS %s", schemaName));
 
-            // Set search path (optional, for better query performance)
             statement.execute(String.format("ALTER DATABASE %s SET search_path TO %s, public",
                     connection.getCatalog(), schemaName));
 
@@ -173,16 +149,13 @@ public class FlywayMigrationService {
         }
     }
 
-    /**
-     * Drop a schema (used for cleanup on failure)
-     */
+
     public void dropSchema(String schemaName) {
         log.warn("⚠️  Dropping schema: {}", schemaName);
 
         try (Connection connection = dataSource.getConnection();
              Statement statement = connection.createStatement()) {
 
-            // CASCADE will delete all objects in the schema
             statement.execute(String.format("DROP SCHEMA IF EXISTS %s CASCADE", schemaName));
             log.info("Schema dropped successfully: {}", schemaName);
 

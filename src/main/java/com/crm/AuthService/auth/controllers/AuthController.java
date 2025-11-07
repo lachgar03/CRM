@@ -6,6 +6,9 @@ import com.crm.AuthService.auth.dtos.TenantRegistrationRequest;
 import com.crm.AuthService.auth.services.LoginService;
 import com.crm.AuthService.auth.services.RefreshTokenService;
 import com.crm.AuthService.auth.services.TenantRegistrationService;
+import com.crm.AuthService.exception.TenantNotFoundException;
+import com.crm.AuthService.tenant.entities.Tenant;
+import com.crm.AuthService.tenant.repository.TenantRepository;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -23,7 +26,7 @@ public class AuthController {
     private final LoginService loginService;
     private final TenantRegistrationService tenantRegistrationService;
     private final RefreshTokenService refreshTokenService;
-
+    private final TenantRepository tenantRepository;
 
     @PostMapping("/login")
     public ResponseEntity<AuthResponse> login(@Valid @RequestBody LoginRequest loginRequest) {
@@ -33,13 +36,11 @@ public class AuthController {
 
 
     @PostMapping("/register")
-    public ResponseEntity<String> register( // CHANGED: Response type
+    public ResponseEntity<String> register(
                                             @Valid @RequestBody TenantRegistrationRequest registrationRequest) {
 
-        // This method is now void and returns no data
         tenantRegistrationService.registerTenant(registrationRequest);
 
-        // Return 202 ACCEPTED
         String responseMessage = String.format(
                 "Tenant registration for '%s' accepted. Provisioning is in progress.",
                 registrationRequest.getSubdomain()
@@ -67,4 +68,18 @@ public class AuthController {
     public ResponseEntity<String> health() {
         return ResponseEntity.ok("Login , Tenant Registration and Refresh token Services are running");
     }
+    @GetMapping("/provision-status/{subdomain}")
+    public ResponseEntity<Map<String, String>> getProvisioningStatus(@PathVariable String subdomain) {
+        Tenant tenant = tenantRepository.findBySubdomain(subdomain.toLowerCase())
+
+                .orElseThrow(() -> new TenantNotFoundException("Tenant not found: " + subdomain));
+
+        Map<String, String> response = Map.of(
+                "subdomain", tenant.getSubdomain(),
+                "status", tenant.getStatus()
+        );
+
+        return ResponseEntity.ok(response);
+    }
+
 }

@@ -20,10 +20,6 @@ public class PermissionController {
 
     private final PermissionRepository permissionRepository;
 
-    /**
-     * Get all available permissions
-     * Permissions are global - not tenant-specific
-     */
     @GetMapping
     @RequirePermission(resource = "PERMISSION", action = "READ")
     public ResponseEntity<List<PermissionDto>> getAllPermissions() {

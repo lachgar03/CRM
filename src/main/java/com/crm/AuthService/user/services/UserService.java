@@ -16,5 +16,5 @@ public interface UserService {
     void deleteUser(Long id);
     UserResponse activateUser(Long id);
     UserResponse deactivateUser(Long id);
-    UserResponse assignRoles(Long id, Set<Long> roleIds);
+    UserResponse assignRoles(Long id, Set<String> roleNames);
 }

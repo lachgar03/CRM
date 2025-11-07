@@ -40,8 +40,12 @@ INSERT INTO permissions (name, resource, action, description) VALUES
 -- Analytics
 ('ANALYTICS_READ', 'ANALYTICS', 'READ', 'View analytics dashboard'),
 
--- Tenant Management
-('TENANT_MANAGE', 'TENANT', 'MANAGE', 'Manage tenant settings')
+-- Tenant Management (Pour Super Admin uniquement)
+('TENANT_MANAGE', 'TENANT', 'MANAGE', 'Manage tenant settings'),
+
+-- Role Management (Pour Admin et Super Admin)
+('ROLE_READ', 'ROLE', 'READ', 'View roles and permissions'),
+('ROLE_MANAGE', 'ROLE', 'MANAGE', 'Create, update, delete roles and assign permissions')
     ON CONFLICT (name) DO NOTHING;
 
 -- Assign Permissions to Roles
@@ -60,28 +64,29 @@ SELECT id INTO user_id FROM roles WHERE name = 'ROLE_USER';
 SELECT id INTO agent_id FROM roles WHERE name = 'ROLE_AGENT';
 SELECT id INTO sales_id FROM roles WHERE name = 'ROLE_SALES';
 
--- SUPER_ADMIN: All permissions
+-- SUPER_ADMIN: All permissions (y compris TENANT_MANAGE)
 INSERT INTO role_permissions (role_id, permission_id)
 SELECT super_admin_id, id FROM permissions
     ON CONFLICT DO NOTHING;
 
--- ADMIN: All except cross-tenant
+-- ADMIN: All except cross-tenant (reçoit ROLE_MANAGE mais pas TENANT_MANAGE)
 INSERT INTO role_permissions (role_id, permission_id)
 SELECT admin_id, id FROM permissions WHERE name != 'TENANT_MANAGE'
 ON CONFLICT DO NOTHING;
 
--- USER: Read-only
+-- USER: Read-only (sur les ressources principales)
 INSERT INTO role_permissions (role_id, permission_id)
-SELECT user_id, id FROM permissions WHERE action = 'READ'
+SELECT user_id, id FROM permissions
+WHERE action = 'READ' AND resource IN ('CUSTOMER', 'OPPORTUNITY', 'TICKET', 'ANALYTICS')
 ON CONFLICT DO NOTHING;
 
--- AGENT: Tickets + Customers (read/update)
+-- AGENT: Tickets (full) + Customers (read/update/create)
 INSERT INTO role_permissions (role_id, permission_id)
 SELECT agent_id, id FROM permissions
-WHERE resource IN ('TICKET', 'CUSTOMER') AND action IN ('READ', 'UPDATE', 'CREATE')
-ON CONFLICT DO NOTHING;
+WHERE (resource = 'TICKET') OR (resource = 'CUSTOMER' AND action IN ('READ', 'UPDATE', 'CREATE'))
+    ON CONFLICT DO NOTHING;
 
--- SALES: Opportunities + Customers (full)
+-- SALES: Opportunities (full) + Customers (full)
 INSERT INTO role_permissions (role_id, permission_id)
 SELECT sales_id, id FROM permissions
 WHERE resource IN ('OPPORTUNITY', 'CUSTOMER')

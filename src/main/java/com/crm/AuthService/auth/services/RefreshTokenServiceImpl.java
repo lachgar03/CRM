@@ -33,7 +33,6 @@ public class RefreshTokenServiceImpl implements RefreshTokenService {
     @Override
     public AuthResponse refreshToken(String refreshToken) throws InvalidTokenException, UserNotFoundException {
 
-        // Tenant context IS set here by JwtAuthenticationFilter
         String username = jwtService.extractUsername(refreshToken);
         Long tenantId = TenantContextHolder.getRequiredTenantId();
 
@@ -44,7 +43,6 @@ public class RefreshTokenServiceImpl implements RefreshTokenService {
             throw new InvalidTokenException("Refresh token invalide ou expiré");
         }
 
-        // === Manually populate transient fields for AuthHelper ===
         Tenant tenant = tenantRepository.findById(tenantId)
                 .orElseThrow(() -> new TenantNotFoundException("Tenant not found: " + tenantId));
 
@@ -59,15 +57,11 @@ public class RefreshTokenServiceImpl implements RefreshTokenService {
         user.setTenantName(tenant.getName());
         user.setTenantStatus(tenant.getStatus());
         user.setRoleNames(roleNames);
-        // === End population ===
 
-        // This call now works, as the 'user' object has the required transient data
         authHelper.validateUserAndTenantStatus(user);
 
-        // Generate new access token
         String newAccessToken = jwtService.generateToken(user, tenantId);
 
-        // This call now works without making extra DB calls
         return authHelper.buildAuthResponse(user, newAccessToken, refreshToken);
     }
 }

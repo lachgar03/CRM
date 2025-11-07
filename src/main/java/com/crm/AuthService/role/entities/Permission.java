@@ -8,11 +8,7 @@ import java.time.LocalDateTime;
 import java.util.HashSet;
 import java.util.Set;
 
-/**
- * Permission entity - Lives in PUBLIC schema (shared across all tenants)
- *
- * ✅ Relations JPA OK car même schema (public.permissions ↔ public.roles)
- */
+
 @Entity
 @Table(
         name = "permissions",
@@ -33,34 +29,28 @@ public class Permission {
     private Long id;
 
     @Column(nullable = false, unique = true, length = 100)
-    private String name;  // USER_CREATE, CUSTOMER_READ, etc.
+    private String name;
 
     @Column(nullable = false, length = 100)
-    private String resource;  // USER, CUSTOMER, OPPORTUNITY, TICKET, etc.
+    private String resource;
 
     @Column(nullable = false, length = 50)
-    private String action;  // CREATE, READ, UPDATE, DELETE, MANAGE
+    private String action;
 
     @Column(columnDefinition = "TEXT")
     private String description;
 
-    // ============================================================
-    // ✅ RELATION JPA OK - Même schema (public)
-    // ============================================================
+
     @ManyToMany(mappedBy = "permissions")
-    @JsonIgnore  // Éviter les boucles infinies dans JSON
+    @JsonIgnore
     @Builder.Default
     private Set<Role> roles = new HashSet<>();
 
-    // ============================================================
-    // Audit fields
-    // ============================================================
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
-    // ============================================================
-    // Lifecycle
-    // ============================================================
+
     @PrePersist
     protected void onCreate() {
         if (createdAt == null) {
@@ -68,9 +58,7 @@ public class Permission {
         }
     }
 
-    // ============================================================
-    // Helper methods
-    // ============================================================
+
 
     public boolean matches(String resource, String action) {
         return this.resource.equalsIgnoreCase(resource)
@@ -81,10 +69,7 @@ public class Permission {
         return resource + ":" + action;
     }
 
-    /**
-     * Get permission name in format: RESOURCE_ACTION
-     * Example: USER_CREATE, CUSTOMER_READ
-     */
+
     public String getPermissionName() {
         return resource.toUpperCase() + "_" + action.toUpperCase();
     }

@@ -14,13 +14,7 @@ import org.springframework.web.filter.OncePerRequestFilter;
 import java.io.IOException;
 import java.util.Optional;
 
-/**
- * Filter to resolve Tenant ID from X-Tenant-Subdomain header
- * for public endpoints like /login and /register.
- *
- * This filter runs BEFORE JwtAuthenticationFilter.
- * The JwtAuthenticationFilter is responsible for clearing the context.
- */
+
 @Slf4j
 @Component
 @RequiredArgsConstructor
@@ -28,7 +22,7 @@ public class TenantResolutionFilter extends OncePerRequestFilter {
 
     private final TenantRepository tenantRepository;
     public static final String TENANT_HEADER = "X-Tenant-Subdomain";
-
+    private final TenantSchemaResolver tenantSchemaResolver;
     @Override
     protected void doFilterInternal(
             HttpServletRequest request,
@@ -36,7 +30,6 @@ public class TenantResolutionFilter extends OncePerRequestFilter {
             FilterChain filterChain
     ) throws ServletException, IOException {
 
-        // Only attempt to resolve if context is not already set
         if (TenantContextHolder.getTenantId() == null) {
             String subdomain = request.getHeader(TENANT_HEADER);
 
@@ -44,8 +37,9 @@ public class TenantResolutionFilter extends OncePerRequestFilter {
                 try {
                     Optional<Tenant> tenantOpt = tenantRepository.findBySubdomain(subdomain.toLowerCase());
                     if (tenantOpt.isPresent()) {
-                        // Set tenant ID in context
-                        TenantContextHolder.setTenantId(tenantOpt.get().getId());
+                        Long tenantId = tenantOpt.get().getId();
+                        TenantContextHolder.setTenantId(tenantId);
+                        tenantSchemaResolver.setCurrentTenantSchema(tenantId);
                         log.debug("Tenant context set from {} header: {} (Tenant ID: {})",
                                 TENANT_HEADER, subdomain, tenantOpt.get().getId());
                     } else {
@@ -57,7 +51,6 @@ public class TenantResolutionFilter extends OncePerRequestFilter {
             }
         }
 
-        // Continue the filter chain
         filterChain.doFilter(request, response);
     }
 }

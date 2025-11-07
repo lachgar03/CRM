@@ -12,15 +12,9 @@ import java.util.HashSet;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-/**
- * User entity - Lives in tenant-specific schemas (tenant_X)
- *
- * Relations:
- * - Roles: Stored as IDs only (roleIds) - Resolved at runtime
- * - Tenant: Derived from schema context, not a DB relation
- */
+
 @Entity
-@Table(name = "users") // Omit schema - determined by search_path
+@Table(name = "users")
 @Getter
 @Setter
 @NoArgsConstructor
@@ -60,9 +54,7 @@ public class User implements UserDetails {
     @Column(nullable = false)
     private boolean credentialsNonExpired = true;
 
-    // ============================================================
-    // ROLES - Stored as IDs, resolved at runtime
-    // ============================================================
+
     @ElementCollection(fetch = FetchType.EAGER)
     @CollectionTable(
             name = "user_roles",
@@ -72,40 +64,32 @@ public class User implements UserDetails {
     @Builder.Default
     private Set<Long> roleIds = new HashSet<>();
 
-    // ============================================================
-    // TENANT - Derived from context, not stored
-    // ============================================================
-    @Transient
-    private Long tenantId; // Set at runtime from TenantContextHolder
 
     @Transient
-    private String tenantName; // Loaded when needed
+    private Long tenantId;
 
-    // ============================================================
-    // RUNTIME DATA - Not persisted
-    // ============================================================
     @Transient
-    @Builder.Default
-    private Set<String> roleNames = new HashSet<>(); // For authorities
+    private String tenantName;
+
 
     @Transient
     @Builder.Default
-    private Set<String> permissions = new HashSet<>(); // For permission checks
+    private Set<String> roleNames = new HashSet<>();
+
+    @Transient
+    @Builder.Default
+    private Set<String> permissions = new HashSet<>();
 
     @Transient
     private String tenantStatus;
-    // ============================================================
-    // AUDIT
-    // ============================================================
+
     @Column(nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
     @Column
     private LocalDateTime updatedAt;
 
-    // ============================================================
-    // UserDetails Implementation
-    // ============================================================
+
     @Override
     public Collection<? extends GrantedAuthority> getAuthorities() {
         return roleNames.stream()
@@ -138,9 +122,7 @@ public class User implements UserDetails {
         return enabled;
     }
 
-    // ============================================================
-    // Lifecycle Hooks
-    // ============================================================
+
     @PrePersist
     protected void onCreate() {
         if (createdAt == null) {
@@ -154,9 +136,6 @@ public class User implements UserDetails {
     }
 
 
-    /**
-     * Add a role by ID
-     */
     public void addRole(Long roleId) {
         if (this.roleIds == null) {
             this.roleIds = new HashSet<>();
@@ -164,25 +143,17 @@ public class User implements UserDetails {
         this.roleIds.add(roleId);
     }
 
-    /**
-     * Remove a role by ID
-     */
     public void removeRole(Long roleId) {
         if (this.roleIds != null) {
             this.roleIds.remove(roleId);
         }
     }
 
-    /**
-     * Check if user has a specific role name (runtime check)
-     */
     public boolean hasRole(String roleName) {
         return roleNames != null && roleNames.contains(roleName);
     }
 
-    /**
-     * Check if user has a specific permission (runtime check)
-     */
+
     public boolean hasPermission(String permission) {
         return permissions != null && permissions.contains(permission);
     }

@@ -19,7 +19,7 @@ public class TenantRegistrationRequest {
     @Pattern(regexp = "^[a-z0-9-]+$", message = "Subdomain must be lowercase alphanumeric")
     private String subdomain;
 
-    private String subscriptionPlan = "FREE"; // Default
+    private String subscriptionPlan = "FREE";
     @NotBlank(message = "Admin email is required")
     @Email
     private String adminEmail;

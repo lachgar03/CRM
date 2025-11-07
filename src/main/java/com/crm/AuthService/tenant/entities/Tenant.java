@@ -8,10 +8,9 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.time.LocalDateTime;
-import java.util.List;
 
 @Entity
-@Table(name = "tenants", schema = "public") // <-- THIS LINE IS ADDED
+@Table(name = "tenants", schema = "public")
 @NoArgsConstructor
 @AllArgsConstructor
 @Data

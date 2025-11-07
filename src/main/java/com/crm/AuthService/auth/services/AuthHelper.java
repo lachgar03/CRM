@@ -2,25 +2,22 @@ package com.crm.AuthService.auth.services;
 
 import com.crm.AuthService.auth.dtos.AuthResponse;
 import com.crm.AuthService.auth.dtos.TenantRegistrationRequest;
-import com.crm.AuthService.exception.TenantNotFoundException; // Recommended
 import com.crm.AuthService.role.entities.Role;
 import com.crm.AuthService.role.repositories.RoleRepository;
 import com.crm.AuthService.security.JwtService;
-import com.crm.AuthService.security.TenantContextHolder; // Import context holder
+import com.crm.AuthService.security.TenantContextHolder;
 import com.crm.AuthService.tenant.entities.Tenant;
-import com.crm.AuthService.tenant.repository.TenantRepository; // Import repo
+import com.crm.AuthService.tenant.repository.TenantRepository;
 import com.crm.AuthService.user.entities.User;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.security.authentication.DisabledException; // Import
+import org.springframework.security.authentication.DisabledException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
 
 import java.time.LocalDateTime;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 @Component
 @RequiredArgsConstructor
@@ -41,24 +38,13 @@ public class AuthHelper {
     );
 
 
-    /**
-     * Validates user and tenant status
-     * @param user User to validate
-     * @throws DisabledException if user or tenant is disabled
-     */
-    /**
-     * Validates user and tenant status
-     * @param user User to validate
-     * @throws DisabledException if user or tenant is disabled
-     */
+
     public void validateUserAndTenantStatus(User user) {
         if (!user.isEnabled()) {
             throw new DisabledException("Compte utilisateur désactivé");
         }
 
-        // MODIFIED: Read status directly from the User principal
         if (user.getTenantStatus() == null) {
-            // This should not happen if CustomUserDetailsService is working
             throw new IllegalStateException("Tenant status not loaded onto User principal");
         }
 
@@ -70,24 +56,18 @@ public class AuthHelper {
         }
     }
 
-    /**
-     * Validates subdomain format and reserved names
-     * @param subdomain Subdomain to validate
-     * @throws IllegalArgumentException if subdomain is invalid
-     */
+
     public void validateSubdomain(String subdomain) {
         if (subdomain == null || subdomain.isBlank()) {
             throw new IllegalArgumentException("Le sous-domaine ne peut pas être vide");
         }
 
-        // Check length (3-63 characters)
         if (subdomain.length() < 3 || subdomain.length() > 63) {
             throw new IllegalArgumentException(
                     "Le sous-domaine doit contenir entre 3 et 63 caractères"
             );
         }
 
-        // Check format
         if (!subdomain.matches("^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$")) {
             throw new IllegalArgumentException(
                     "Le sous-domaine ne peut contenir que des lettres minuscules, " +
@@ -95,7 +75,6 @@ public class AuthHelper {
             );
         }
 
-        // Check reserved names
         if (RESERVED_SUBDOMAINS.contains(subdomain.toLowerCase())) {
             throw new IllegalArgumentException(
                     String.format("Le sous-domaine '%s' est réservé", subdomain)
@@ -103,11 +82,7 @@ public class AuthHelper {
         }
     }
 
-    /**
-     * Builds a Tenant entity from registration request
-     * @param request Registration request
-     * @return Tenant entity
-     */
+
     public Tenant buildTenant(TenantRegistrationRequest request) {
         return Tenant.builder()
                 .name(request.getCompanyName())
@@ -118,13 +93,7 @@ public class AuthHelper {
                 .build();
     }
 
-    /**
-     * Builds an admin User entity from registration request
-     * @param request Registration request
-     * @param adminRole Admin role
-     * @param tenant Associated tenant (only used for context, not saved on user)
-     * @return User entity
-     */
+
     public User buildAdminUser(TenantRegistrationRequest request, Role adminRole, Tenant tenant) {
         return User.builder()
                 .firstName(request.getAdminFirstName())
@@ -138,16 +107,10 @@ public class AuthHelper {
                 .build();
     }
 
-    /**
-     * Builds AuthResponse with new tokens
-     * @param user User entity
-     * @return AuthResponse
-     */
+
     public AuthResponse buildAuthResponse(User user) {
-        // Get tenantId from user principal (which was set from context)
         Long tenantId = user.getTenantId();
         if (tenantId == null) {
-            // Fallback for registration flow
             tenantId = TenantContextHolder.getRequiredTenantId();
         }
 
@@ -157,18 +120,9 @@ public class AuthHelper {
         return buildAuthResponse(user, accessToken, refreshToken);
     }
 
-    /**
-     * Builds AuthResponse with provided tokens
-     * @param user User entity
-     * @param accessToken Access token
-     * @param refreshToken Refresh token
-     * @return AuthResponse
-     */
+
     public AuthResponse buildAuthResponse(User user, String accessToken, String refreshToken) {
 
-        // MODIFIED: All data is now on the User principal. No DB calls needed.
-
-        // Get Role names from transient field
         Set<String> roleNames = user.getRoleNames();
 
         return AuthResponse.builder()

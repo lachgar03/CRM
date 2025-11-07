@@ -7,11 +7,7 @@ import java.time.LocalDateTime;
 import java.util.HashSet;
 import java.util.Set;
 
-/**
- * Role entity - Lives in PUBLIC schema (shared across all tenants)
- *
- * ✅ Relations JPA OK car même schema (public.roles ↔ public.permissions)
- */
+
 @Entity
 @Table(name = "roles", schema = "public")
 @Getter
@@ -22,11 +18,11 @@ import java.util.Set;
 public class Role {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)  // Use IDENTITY (not AUTO)
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
     @Column(nullable = false, unique = true, length = 100)
-    private String name;  // ROLE_ADMIN, ROLE_USER, ROLE_AGENT, etc.
+    private String name;
 
     @Column(columnDefinition = "TEXT")
     private String description;
@@ -35,12 +31,10 @@ public class Role {
     @Builder.Default
     private Boolean isSystemRole = false;
 
-    // ============================================================
-    // ✅ RELATION JPA OK - Même schema (public)
-    // ============================================================
+
     @ManyToMany(fetch = FetchType.EAGER)
     @JoinTable(
-            name = "role_permissions",  // Correspond à votre migration SQL
+            name = "role_permissions",
             schema = "public",
             joinColumns = @JoinColumn(name = "role_id"),
             inverseJoinColumns = @JoinColumn(name = "permission_id")
@@ -48,18 +42,14 @@ public class Role {
     @Builder.Default
     private Set<Permission> permissions = new HashSet<>();
 
-    // ============================================================
-    // Audit fields
-    // ============================================================
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
     @Column(name = "updated_at")
     private LocalDateTime updatedAt;
 
-    // ============================================================
-    // Lifecycle
-    // ============================================================
+
     @PrePersist
     protected void onCreate() {
         if (createdAt == null) {
@@ -72,9 +62,7 @@ public class Role {
         updatedAt = LocalDateTime.now();
     }
 
-    // ============================================================
-    // Helper methods
-    // ============================================================
+
 
     public boolean hasPermission(String permissionName) {
         return permissions.stream()

@@ -13,10 +13,7 @@ import org.springframework.stereotype.Component;
 
 import java.lang.reflect.Method;
 
-/**
- * AOP Aspect to intercept methods annotated with @RequirePermission
- * and enforce permission checks before method execution
- */
+
 @Slf4j
 @Aspect
 @Component
@@ -25,13 +22,7 @@ public class PermissionAspect {
 
     private final PermissionService permissionService;
 
-    /**
-     * Intercepts all methods annotated with @RequirePermission
-     *
-     * @param joinPoint The method being intercepted
-     * @return The result of the method if permission check passes
-     * @throws Throwable if method execution fails or permission is denied
-     */
+
     @Around("@annotation(com.crm.AuthService.annotations.RequirePermission)")
     public Object checkPermission(ProceedingJoinPoint joinPoint) throws Throwable {
         MethodSignature signature = (MethodSignature) joinPoint.getSignature();
@@ -51,7 +42,6 @@ public class PermissionAspect {
             log.debug("Permission check: method={}, resource={}, action={}",
                     method.getName(), resource, action);
 
-            // Check if user has the required permission
             if (!permissionService.hasPermission(resource, action)) {
                 log.warn("Access denied: method={}, resource={}, action={}",
                         method.getName(), resource, action);
@@ -64,18 +54,10 @@ public class PermissionAspect {
                     method.getName(), resource, action);
         }
 
-        // Permission granted - proceed with method execution
         return joinPoint.proceed();
     }
 
-    /**
-     * Intercepts methods in classes annotated with @RequirePermission
-     * (class-level annotation applies to all methods)
-     *
-     * @param joinPoint The method being intercepted
-     * @return The result of the method if permission check passes
-     * @throws Throwable if method execution fails or permission is denied
-     */
+
     @Around("@within(com.crm.AuthService.annotations.RequirePermission)")
     public Object checkClassLevelPermission(ProceedingJoinPoint joinPoint) throws Throwable {
         RequirePermission annotation = joinPoint.getTarget().getClass()

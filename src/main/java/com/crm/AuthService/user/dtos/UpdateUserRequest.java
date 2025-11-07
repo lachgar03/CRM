@@ -21,5 +21,4 @@ public class UpdateUserRequest {
 
     private Boolean enabled;
 
-    private Set<Long> roleIds;
-}
+    private Set<String> roleNames;}

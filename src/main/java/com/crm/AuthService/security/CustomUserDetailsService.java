@@ -24,19 +24,16 @@ public class CustomUserDetailsService implements UserDetailsService {
 
     private final UserRepository userRepository;
     private final RoleRepository roleRepository;
-    // INJECT TenantRepository
     private final TenantRepository tenantRepository;
 
     @Override
     @Transactional
     public UserDetails loadUserByUsername(String email) throws UsernameNotFoundException {
-        // This will now work, thanks to TenantResolutionFilter
         Long tenantId = TenantContextHolder.getRequiredTenantId();
 
         User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new UsernameNotFoundException("User not found with email: " + email));
 
-        // Fetch Tenant and Roles
         Tenant tenant = tenantRepository.findById(tenantId)
                 .orElseThrow(() -> new TenantNotFoundException("Tenant not found: " + tenantId));
 
@@ -48,7 +45,6 @@ public class CustomUserDetailsService implements UserDetailsService {
                     .collect(Collectors.toSet());
         }
 
-        // Populate the transient fields on the User principal
         user.setRoleNames(roleNames);
         user.setTenantId(tenant.getId());
         user.setTenantName(tenant.getName());
