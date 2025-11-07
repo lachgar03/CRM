@@ -3,11 +3,10 @@ package com.crm.AuthService.auth.services;
 import com.crm.AuthService.auth.dtos.AuthResponse;
 import com.crm.AuthService.auth.dtos.TenantRegistrationRequest;
 import com.crm.AuthService.role.entities.Role;
-import com.crm.AuthService.role.repositories.RoleRepository;
+
 import com.crm.AuthService.security.JwtService;
 import com.crm.AuthService.security.TenantContextHolder;
 import com.crm.AuthService.tenant.entities.Tenant;
-import com.crm.AuthService.tenant.repository.TenantRepository;
 import com.crm.AuthService.user.entities.User;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
@@ -24,8 +23,7 @@ import java.util.Set;
 public class AuthHelper {
     private final JwtService jwtService;
     private final PasswordEncoder passwordEncoder;
-    private final TenantRepository tenantRepository;
-    private final RoleRepository roleRepository;
+
 
     @Value("${jwt.expiration}")
     private Long jwtExpiration;
@@ -33,7 +31,7 @@ public class AuthHelper {
     private static final String TOKEN_TYPE_BEARER = "Bearer";
 
     private static final List<String> RESERVED_SUBDOMAINS = List.of(
-            "admin", "api", "www", "app", "test", "staging", "prod", "production",
+             "api", "www", "app", "test", "staging", "prod", "production",
             "dev", "demo", "mail", "ftp", "cdn", "static", "assets"
     );
 

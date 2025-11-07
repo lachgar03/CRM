@@ -1,5 +1,14 @@
-version: "3.9"
 
+# -----------------------------
+# Réseau dédié pour l'application
+# -----------------------------
+networks:
+  crm-network:
+    driver: bridge
+
+# -----------------------------
+# Services
+# -----------------------------
 services:
   postgres:
     image: postgres:15
@@ -11,15 +20,24 @@ services:
       - "${DB_PORT}:5432"
     volumes:
       - db-data:/var/lib/postgresql/data
+    networks:
+      - crm-network
+
   redis:
     image: redis:latest
-    container_name: redis
+    container_name: crm-redis
+    restart: always
+    command: [ "redis-server", "--appendonly", "yes" ]
     ports:
       - "6379:6379"
-    command: [ "redis-server", "--appendonly", "yes" ]
     volumes:
-      - redis_data:/data
-    restart: always
+      - redis-data:/data
+    networks:
+      - crm-network
+
+# -----------------------------
+# Volumes pour persistance
+# -----------------------------
 volumes:
   db-data:
   redis-data:

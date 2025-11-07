@@ -62,8 +62,8 @@ public class SecurityConfig {
                 )
 
                 .authenticationProvider(authenticationProvider())
-                .addFilterBefore(tenantResolutionFilter, JwtAuthenticationFilter.class)
-                .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
+                .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
+                .addFilterBefore(tenantResolutionFilter, JwtAuthenticationFilter.class);
 
         return http.build();
     }
