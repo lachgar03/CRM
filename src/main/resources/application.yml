@@ -1,7 +1,7 @@
 spring:
   application:
     name: crm-auth-service
-
+  clean-on-startup: true
   jpa:
     database-platform: org.hibernate.dialect.PostgreSQLDialect
     hibernate:
@@ -42,3 +42,8 @@ management:
 flyway:
   sql-migration-prefix: V
   repeatable-sql-migration-prefix: R
+  clean-disabled: false  # Allow Flyway clean command
+  clean-on-validation-error: true  # Clean on validation errors
+  baseline-on-migrate: true
+
+

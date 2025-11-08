@@ -1,7 +1,0 @@
-spring:
-  profiles:
-    active: test
-  datasource:
-    url: jdbc:postgresql://localhost:5432/authservice_test
-    username: test_user
-    password: test_pass
