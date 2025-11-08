@@ -9,6 +9,7 @@ import com.crm.AuthService.user.entities.User;
 import com.crm.AuthService.user.repositories.UserRepository;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
@@ -20,6 +21,7 @@ import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
+@Lazy
 public class CustomUserDetailsService implements UserDetailsService {
 
     private final UserRepository userRepository;

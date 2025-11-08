@@ -39,3 +39,6 @@ management:
         include: health , info , metrics
     health:
       show-details: always
+flyway:
+  sql-migration-prefix: V
+  repeatable-sql-migration-prefix: R

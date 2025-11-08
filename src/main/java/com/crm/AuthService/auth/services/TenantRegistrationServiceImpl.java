@@ -55,14 +55,7 @@ public class TenantRegistrationServiceImpl implements TenantRegistrationService 
 
 
 
-        Role adminRole = roleRepository.findByName(ROLE_ADMIN)
-                .orElseThrow(() -> {
-                    log.error("✗ Admin role not found: {}", ROLE_ADMIN);
-                    return new RoleNotFoundException(ROLE_ADMIN);
-                });
-        log.debug("✓ Admin role found: {}", adminRole.getName());
 
-        log.info("Phase 1: Pre-validation completed ✓");
 
         log.info("Phase 2: Creating tenant record");
 
